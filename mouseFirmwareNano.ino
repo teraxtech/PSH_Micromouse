@@ -1,114 +1,108 @@
-/*
-  ReadAnalogVoltage
+#include "motor.h"
 
-  Reads an analog input on pin 0, converts it to voltage, and prints the result to the Serial Monitor.
-  Graphical representation is available using Serial Plotter (Tools > Serial Plotter menu).
-  Attach the center pin of a potentiometer to pin A0, and the outside pins to +5V and ground.
-
-  This example code is in the public domain.
-
-  https://www.arduino.cc/en/Tutorial/BuiltInExamples/ReadAnalogVoltage
-*/
-
-volatile int direction = 1; //1=clockwise, -1 = counterClockwise
-int rotationThreshhold = 1;
-class Motor {
-  
-  static void interrupt1(){
-  }
-  private:
-    short pin_cw;
-    short pin_ccw;
-    short hall_pin_a;
-    short hall_pin_b;
-    int hall_a;
-    int hall_b;
-    bool direction;
-    long revolutions;
-    long target = 0;
-
-  public:
-    Motor(short cw, short ccw, short a, short b){
-        pin_cw = cw;
-        pin_ccw = ccw;
-        hall_pin_a = a;
-        hall_pin_b = b;
-
-        pinMode(cw , OUTPUT);
-        pinMode(ccw , OUTPUT);
-        pinMode(a  , INPUT);
-        pinMode(b , INPUT);
-    }
-
-    void readHall(){
-      bool hall_a = digitalRead(this->hall_pin_a);
-      bool hall_b = digitalRead(this->hall_pin_b);
-      
-      this->hall_a = hall_a;
-      this->hall_b = hall_b;
-      short direction = hall_b?-1:1;
-
-
-      this->revolutions += direction;
-      if((this->target-this->revolutions)*direction>0)return;
-
-      if(direction == 1){
-        digitalWrite(this->pin_cw, LOW);
-      }else{
-        digitalWrite(this->pin_ccw, LOW);
-      }
-    }
-
-    void turn(int amount){
-      this->target+= amount;
-      if(amount > 0){
-        digitalWrite(this->pin_cw, HIGH);
-      }else{
-        digitalWrite(this->pin_ccw, HIGH);
-      }
-    }
-
-    int get_pin_a(){ return this->hall_pin_a; }
-
-    int getRevolutions(){ return this->revolutions; }
-    
-    // void addInterrupt(void* callback()){
-    //   attachInterrupt(digitalPinToInterrupt(this->hall_a), [callback]{ callback(); }, RISING);
-    // }
+struct Sensor{
+  int trigPin;
+  int echoPin;
 };
 
-volatile Motor left_motor = Motor(16,17,3,5);
+long ping(Sensor sensor){
+  digitalWrite(sensor.trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(sensor.trigPin, HIGH);
+  delayMicroseconds(11);
+  digitalWrite(sensor.trigPin, LOW);
 
-long int programCounter = 0;
+  long duration = pulseIn(sensor.echoPin, HIGH);
+  return duration * 69/4; //34.5 mm/s divided by 2
+  // return (duration * 0.0345 * 0.5);
+}
+
+Sensor newSensor(int trigPin, int echoPin){
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  Sensor s = {trigPin, echoPin};
+  return s;
+}
+
+Sensor left;
+Sensor right;
+Sensor front;
+
+Motor left_motor = *(new Motor(14,15,2,4));
+Motor right_motor = *(new Motor(16,17,3,5));
 
 // the setup routine runs once when you press reset:
 void setup() {
   // initialize serial communication at 9600 bits per second:
   Serial.begin(9600);
-  // initialize serial communication at 115200 bits per second:
-  // Serial.begin(115200);
 
-  //set the resolution to 12 bits (0-4095)
-  // analogReadResolution(12);;
-  const Motor right_motor = Motor(14,15,2,4);
+  left = newSensor(6, 7);
+  right = newSensor(8, 9);
+  front = newSensor(10, 11);
 
-  // right_motor.attachInterrupt(right_motor.readHall);
   attachInterrupt(digitalPinToInterrupt(right_motor.get_pin_a()), [right_motor]{ right_motor.readHall(); }, RISING);
-  // attachInterrupt(digitalPinToInterrupt(left_motor.get_pin_a()), []{ left_motor.readHall(); }, RISING);
+  // attachInterrupt(digitalPinToInterrupt(right_motor.get_pin_b()), [right_motor]{ right_motor.readHall(); }, RISING);
+  attachInterrupt(digitalPinToInterrupt(left_motor.get_pin_a()), [left_motor]{ left_motor.readHall(); }, RISING);
+  // attachInterrupt(digitalPinToInterrupt(left_motor.get_pin_b()), [left_motor]{ left_motor.readHall(); }, RISING);
 
-  right_motor.turn(1000);
+  left_motor.turn(-4000);
+  right_motor.turn(4000);
+  // left_motor.turn(-1000);
+  // right_motor.turn(1330);
 }
 
+
+//some variables to help with printing debug info
 long int timeOfLastPrint = 0;
-char output_buf[50];
+char output_buf[130];
+int state = 0;
 // the loop routine runs over and over again forever:
 void loop() {
-  programCounter++;
 
-  // if(millis() - timeOfLastPrint > 100){
-  //   sprintf(output_buf, "dir: %2d, val1: %4d, val2: %4d \n", 0, right_motor.getRevolutions(), left_motor.getRevolutions());
-  //   Serial.println(output_buf);
-  //   timeOfLastPrint = millis();
-  // }
+  // long distanceL = ping(left);
+  // delay(10);
+  // long distanceR = ping(right);
+  // delay(10);
+  // long distanceF = ping(front);
+
+  if(millis() - timeOfLastPrint > 100){
+    // Serial.print("DistanceL: ");
+    // Serial.print(distanceL);
+    // Serial.print(" cm, DistanceR: ");
+    // Serial.print(distanceR);
+    // Serial.print(" cm, DistanceF: ");
+    // Serial.print(distanceF);
+    // Serial.println(" cm");
+
+    sprintf(output_buf, "s: %2d, right_rev: %4d, target: %4d, dir: %d, left_rev: %4d, target: %4d, dir: %2d \n", state, right_motor.getRevolutions(), right_motor.getTarget(), right_motor.getDirection(), left_motor.getRevolutions(), left_motor.getTarget(), left_motor.getDirection());
+    // sprintf(output_buf, "right_rev: %4d, target: %4d, dir: %d, left_rev: %4d, target: %4d, dir: %2d, distL: %4d, distR: %4d \n", right_motor.getRevolutions(), right_motor.getTarget(), right_motor.getDirection(), left_motor.getRevolutions(), left_motor.getTarget(), left_motor.getDirection());
+    Serial.println(output_buf);
+    // sprintf(output_buf, "distL: %6dmm, distF: %6dmm, distR: %6dmm \n", distanceL, distanceF, distanceR);
+    // Serial.println(output_buf);
+    timeOfLastPrint = millis();
+  }
+  switch(state){
+    case 0: 
+      if(millis() > 8000){
+        state++;
+        right_motor.turn(-1030);
+      }
+      break;
+    case 1:
+      if(millis() > 10000){
+        state++;
+        left_motor.turn(-1030);
+      }
+      break;
+    case 2:
+      if(millis() > 12000){
+        state++;
+        left_motor.turn(-4000);
+        right_motor.turn(4000);
+        // left_motor.turn(-1330);
+      }
+      break;
+    // default:
+  }
 
 }
