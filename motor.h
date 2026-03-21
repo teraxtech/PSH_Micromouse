@@ -18,9 +18,12 @@ class Motor {
     int direction;
     long target;
     Motor(short cw, short ccw, short a, short b);
+		Motor();
+
     void readHall();
     // functino to turn the motor by the given number of rotations
     void turn(int amount);
+		void init();
 
     // return the state of hall sensor A
     int get_pin_a(){ return this->hall_pin_a; }

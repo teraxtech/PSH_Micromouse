@@ -1,0 +1,60 @@
+#include "motor.h"
+
+long int programCounter = 0;
+
+// Source - https://stackoverflow.com/q/28746744
+// Posted by Cory Kramer, modified by community. See post 'Timeline' for change history
+// Retrieved 2026-02-21, License - CC BY-SA 4.0
+
+// using DecisionFn = bool(*)();
+// typedef bool(*DecisionFn)(int);
+//
+// class Decide
+// {
+// public:
+//     Decide(DecisionFn dec) : _dec{dec} {}
+// private:
+//     DecisionFn _dec;
+// };
+//
+// int main()
+// {
+//     int x = 5;
+//     Decide greaterThanThree{ [](int x){ return x > 3; } };
+//     return 0;
+// }
+
+Motor *left_motor = new Motor(14,15,2,4);
+Motor *right_motor = new Motor(17,16,3,5);
+
+// the setup routine runs once when you press reset:
+void setup() {
+  // initialize serial communication at 9600 bits per second:
+  Serial.begin(9600);
+
+  // const Motor right_motor = Motor(14,15,2,4);
+  // right_motor.attachInterrupt(right_motor->readHall);
+  attachInterrupt(digitalPinToInterrupt(left_motor->get_pin_a()), [](Motor* left_motor){ left_motor->readHall(); }, RISING);
+  attachInterrupt(digitalPinToInterrupt(right_motor->get_pin_a()), [](Motor* right_motor){ right_motor->readHall(); }, RISING);
+  delay(500);
+  Serial.println("Done setting interrupts");
+  
+  delay(500);
+
+  right_motor->turn(1000);
+  left_motor->turn(-1000);
+}
+
+//some variables to help with printing debug info
+long int timeOfLastPrint = 0;
+char output_buf[80];
+// the loop routine runs over and over again forever:
+void loop() {
+  programCounter++;
+
+  if(millis() - timeOfLastPrint > 100){
+    sprintf(output_buf, "right_rev: %4d, target: %4d, dir: %d, left_rev: %4d, target: %4d, dir: %d \n", right_motor->getRevolutions(), right_motor->getTarget(), right_motor->getDirection(), left_motor->getRevolutions(), left_motor->getTarget(), left_motor->getDirection());
+    Serial.println(output_buf);
+    timeOfLastPrint = millis();
+  }
+}
